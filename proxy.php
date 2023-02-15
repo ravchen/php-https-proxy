@@ -133,11 +133,17 @@ function makeRequest($url, $ip = '') {
   //indexed array of header strings to be passed to cURL.
   $curlRequestHeaders = [];
   $is_json = false;
+  $is_formdata = false;
   foreach ($browserRequestHeaders as $name => $value) {
-    $curlRequestHeaders[] = $name . ": " . $value;
     if (strtolower($name) == "content-type") {
-        $is_json = strpos($value, "multipart/form-data") !== false;
+        if (strpos($value, "multipart/form-data") !== false) {
+            if (file_get_contents("php://input")) $is_json = true;
+            elseif ($_POST) $is_formdata = true;
+            continue; //不用指定header
+        }
     }
+
+    $curlRequestHeaders[] = $name . ": " . $value;
   }
 
   if (!$anonymize) {
@@ -168,7 +174,10 @@ function makeRequest($url, $ip = '') {
       //More info here: http://stackoverflow.com/questions/8899239/http-raw-post-data-not-being-populated-after-upgrade-to-php-5-3
       //If the miniProxyFormAction field appears in the POST data, remove it so the destination server doesn't receive it.
       $postData = [];
-      if ($is_json) {
+      if ($is_formdata) {
+        $postData = $_POST;
+        curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($postData));
+      } elseif ($is_json) {
         $postData = file_get_contents("php://input");
         curl_setopt($ch, CURLOPT_POSTFIELDS, $postData);
         $curlRequestHeaders[] = "Content-Length: " . strlen($postData);
